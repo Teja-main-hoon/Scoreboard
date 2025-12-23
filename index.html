@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Scores Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding: 0;
+            padding-bottom: 0;
+        }
+
+        .scoreboard-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 0;
+            padding: 0 10px;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-bottom: none;
+            border-left: none;
+            border-right: none;
+            position: relative;
+            display: flex;
+            align-items: center;
+            -webkit-app-region: drag;
+        }
+
+
+
+        .teams-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+
+        .team-item {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            border-top: none;
+            border-bottom: 2px solid transparent;
+            flex: 1;
+            min-width: 0;
+            justify-content: center;
+        }
+
+        .team-item:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-3px);
+        }
+
+        .team-item.updated {
+            border-bottom-color: #4ade80;
+            animation: pulse 0.5s ease;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: translateY(-3px) scale(1);
+            }
+
+            50% {
+                transform: translateY(-3px) scale(1.05);
+            }
+        }
+
+        .team-name {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            margin-bottom: 0;
+            text-align: right;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60px;
+        }
+
+        .team-score {
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            min-width: 30px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 10px #4ade80;
+            animation: blink 2s infinite;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+
+        .last-updated {
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 10px;
+            font-family: monospace;
+            pointer-events: none;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 20px;
+        }
+
+        .error-message {
+            color: #fee2e2;
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+            background: rgba(239, 68, 68, 0.2);
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .window-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+            z-index: 1000;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.2s;
+            -webkit-app-region: no-drag;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .control-btn.close:hover {
+            background: #ef4444;
+        }
+
+        .setup-panel {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .setup-input {
+            width: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            color: white;
+            padding: 4px 8px;
+            text-align: center;
+            font-weight: bold;
+            -webkit-app-region: no-drag;
+        }
+
+        .url-input {
+            width: 200px;
+            text-align: left;
+            font-weight: normal;
+            font-size: 12px;
+            flex-grow: 1;
+            /* Take available space */
+        }
+
+        .setup-btn {
+            background: #4ade80;
+            border: none;
+            color: #064e3b;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+
+        .setup-btn:hover {
+            background: #22c55e;
+        }
+
+        .rank-badge {
+            font-size: 10px;
+            font-weight: 800;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: -4px;
+            z-index: 10;
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            display: none;
+            /* Hidden by default */
+        }
+
+        .rank-1 {
+            background: linear-gradient(135deg, #FFD700 0%, #FDB931 100%);
+            color: #8a6d0b;
+            border: 1px solid #fff;
+            display: flex;
+        }
+
+        .rank-2 {
+            background: linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%);
+            color: #424242;
+            border: 1px solid #fff;
+            display: flex;
+        }
+
+        .rank-3 {
+            background: linear-gradient(135deg, #CD7F32 0%, #A0522D 100%);
+            color: #3E1D0E;
+            border: 1px solid #fff;
+            display: flex;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="scoreboard-container">
+        <div class="window-controls">
+            <button class="control-btn" id="minimizeBtn" title="Minimize">−</button>
+            <button class="control-btn close" id="closeBtn" title="Close">×</button>
+        </div>
+        <div class="status-indicator" id="statusIndicator"></div>
+        <div class="last-updated" id="lastUpdated"></div>
+        <!-- Header removed for compact mode -->
+
+        <!-- Setup Panel -->
+        <div id="setupPanel" class="setup-panel">
+            <input type="text" id="urlInput" class="setup-input url-input" placeholder="Paste Apps Script URL here">
+            <label for="teamCount">Teams:</label>
+            <input type="number" id="teamCount" class="setup-input" value="8" min="2" max="8">
+            <button id="startBtn" class="setup-btn">START</button>
+        </div>
+
+        <div id="scoreboardContent" class="teams-row" style="display: none;">
+            <div class="loading" style="padding:0">Loading...</div>
+        </div>
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            // Google Apps Script Web App URL
+            appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxc4feV9jNT4FqOLxPHkT2Z7zA7S3w2nNbRnOn0LLiIo6a9rHpjyuJakj3jLT5hucwOxA/exec',
+            refreshInterval: 500, // Refresh every 0.5 seconds
+            teams: [] // Will be populated dynamically
+        };
+
+        let currentScores = {};
+        let isInitialLoad = true;
+
+        // Initialize (Show Setup first)
+        function init() {
+            document.getElementById('startBtn').addEventListener('click', startApp);
+
+            // Load saved URL
+            const savedUrl = localStorage.getItem('appsScriptUrl') || CONFIG.appsScriptUrl;
+            if (savedUrl) {
+                document.getElementById('urlInput').value = savedUrl;
+            }
+        }
+
+        async function startApp() {
+            const countInput = document.getElementById('teamCount');
+            const urlInput = document.getElementById('urlInput');
+            const count = parseInt(countInput.value) || 8;
+            let url = urlInput.value.trim();
+
+            // Validate URL
+            if (!url) {
+                alert("Please enter the Google Sheet or Apps Script URL.");
+                return;
+            }
+
+            // Smart URL Conversion
+            url = transformUrl(url);
+
+            if (!url.startsWith('https://script.google.com') && !url.includes('docs.google.com/spreadsheets')) {
+                alert("Invalid URL. Please use:\n1. The main Google Sheet URL (from address bar)\n2. Ensure Sheet is shared with 'Anyone with the link can view'");
+                return;
+            }
+
+            // Warning for "Publish to Web" links
+            if (url.includes('/d/e/')) {
+                const proceed = confirm("⚠️ PERFORMANCE WARNING ⚠️\n\nYou are using a 'Publish to Web' link.\nGoogle updates these links once every 5 minutes.\n\nFor INSTANT updates (1-2 seconds), please use the main Google Sheet URL (from your address bar) and share with 'Anyone with the link'.\n\nDo you want to continue with slow updates?");
+                if (!proceed) return;
+            }
+
+            // Save & Update Configuration
+            localStorage.setItem('appsScriptUrl', url);
+            CONFIG.appsScriptUrl = url;
+
+            if (count < 2 || count > 8) {
+                // Show simple error or just reset to limits
+                if (count < 2) countInput.value = 2;
+                if (count > 8) countInput.value = 8;
+                return;
+            }
+
+            // Generate teams
+            CONFIG.teams = Array.from({ length: count }, (_, i) => `Team${i + 1}`);
+
+            // Switch UI
+            document.getElementById('setupPanel').style.display = 'none';
+            document.getElementById('scoreboardContent').style.display = 'flex';
+
+            // Start fetching
+            await loadScores();
+            setInterval(loadScores, CONFIG.refreshInterval);
+        }
+
+        async function loadScores() {
+            try {
+                if (!CONFIG.appsScriptUrl) {
+                    showError('Please configure the Google Apps Script URL.');
+                    return;
+                }
+
+                // Fetch data (now returns ordered array of {name, score})
+                const teamsData = await fetchScores();
+
+                // Normalize scores and calculate ranks
+                const scoresObj = {};
+
+                // CRITIAL CHANGE: Use Index-based mapping (Row 1 -> Team 1)
+                // This ignores what the team is actually named in the sheet for mapping purposes
+                CONFIG.teams.forEach((configTeamName, index) => {
+                    if (index < teamsData.length) {
+                        const row = teamsData[index];
+                        // We use the score from the row
+                        scoresObj[configTeamName] = row.score;
+
+                        // Optional: precise name Sync? 
+                        // For now let's just trust Config names for IDs, but we could update display names too.
+                    } else {
+                        scoresObj[configTeamName] = 0;
+                    }
+                });
+
+                // Calculate ranks (Dense)
+                const sortedUniqueScores = [...new Set(Object.values(scoresObj))].sort((a, b) => b - a);
+                const teamRanks = {};
+                Object.keys(scoresObj).forEach(team => {
+                    const score = scoresObj[team];
+                    teamRanks[team] = sortedUniqueScores.indexOf(score) + 1;
+                });
+
+                // Sort teams by score for display
+                const sortedTeams = CONFIG.teams.slice().sort((a, b) => {
+                    return (scoresObj[b] || 0) - (scoresObj[a] || 0);
+                });
+
+                if (hasScoresChanged(scoresObj)) {
+                    updateDisplay(scoresObj, teamRanks, sortedTeams);
+                }
+
+                updateStatusIndicator(true);
+                hideError();
+            } catch (error) {
+                console.error('Error loading scores:', error);
+                updateStatusIndicator(false);
+                // Clean error message
+                showError(error.message);
+            }
+        }
+
+        // ... helpers ...
+
+        function parseJSON(data) {
+            // Returns Array: [{name: "A", score: 10}, {name: "B", score: 5}]
+            const results = [];
+
+            if (Array.isArray(data)) {
+                data.forEach(item => {
+                    // Extract first two meaningful properties if standard format isn't found
+                    const vals = Object.values(item);
+                    if (vals.length >= 2) {
+                        results.push({ name: String(vals[0]), score: Number(vals[1]) || 0 });
+                    }
+                });
+            } else if (typeof data === 'object' && data !== null) {
+                // If it's an object {Team1: 10}, convert to array respecting key order usually
+                // But object key order isn't guaranteed. Best effort.
+                Object.keys(data).forEach(key => {
+                    results.push({ name: key, score: Number(data[key]) || 0 });
+                });
+            }
+            return results;
+        }
+
+        function parseCSV(text) {
+            // Returns Array: [{name: "A", score: 10}, ...]
+            const results = [];
+
+            const lines = text.split(/\r?\n/);
+
+            lines.forEach(line => {
+                if (!line.trim()) return;
+
+                // Robust split
+                const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                let teamName, score;
+
+                if (!parts || parts.length < 2) {
+                    const simpleParts = line.split(',');
+                    if (simpleParts.length >= 2) {
+                        teamName = simpleParts[0].trim().replace(/^"|"$/g, '');
+                        score = Number(simpleParts[1].trim().replace(/^"|"$/g, ''));
+                    }
+                } else {
+                    teamName = parts[0].replace(/^"|"$/g, '').trim();
+                    score = Number(parts[1].replace(/^"|"$/g, '').trim());
+                }
+
+                if (teamName !== undefined && !isNaN(score)) {
+                    results.push({ name: teamName, score: score });
+                }
+            });
+
+            return results;
+        }
+
+        function hasScoresChanged(newScores) {
+            // On initial load, always update
+            if (isInitialLoad) {
+                isInitialLoad = false;
+                return true;
+            }
+
+            // Check if any score has changed
+            for (const teamName of CONFIG.teams) {
+                const newScore = newScores[teamName];
+                const oldScore = currentScores[teamName] || 0;
+
+                if (newScore !== oldScore) {
+                    console.log(`Score changed for ${teamName}: ${oldScore} -> ${newScore}`);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function transformUrl(url) {
+            try {
+                const cleanUrl = url.trim();
+                // Basic cleanup if needed, but fetchScores main logic handles most parsing now.
+                // We keep this simple to avoid ReferenceError in startApp.
+                return cleanUrl;
+            } catch (e) {
+                return url;
+            }
+        }
+
+        // Helper to extract IDs from URL
+        function parseSheetInfo(url) {
+            try {
+                const cleanUrl = url.trim();
+                const idMatch = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                if (!idMatch) return null;
+
+                const id = idMatch[1];
+                // 'e' is used for "Publish to Web" links, not a real Doc ID
+                if (id === 'e') return null;
+
+                let gid = '0';
+                const gidMatch = cleanUrl.match(/[?&#]gid=([0-9]+)/);
+                if (gidMatch) gid = gidMatch[1];
+
+                return { docId: id, gid: gid };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function fetchScores() {
+            // 1. Try to parse ID for smart URLs
+            const sheetInfo = parseSheetInfo(CONFIG.appsScriptUrl);
+
+            // 2. Handle Non-Standard IDs (Apps Script, Publish to Web, etc.)
+            if (!sheetInfo) {
+                let url = CONFIG.appsScriptUrl.trim();
+
+                // Smart fix for "Publish to Web" HTML links
+                if (url.includes('/pubhtml')) {
+                    url = url.replace('/pubhtml', '/pub?output=csv');
+                } else if (url.includes('/pub') && !url.includes('output=csv')) {
+                    // Ensure output=csv is present if it's a general pub link
+                    const separator = url.includes('?') ? '&' : '?';
+                    url += separator + 'output=csv';
+                }
+
+                // Try fetching directly (fallback to old behavior)
+                try {
+                    const response = await fetchWithCacheBusting(url);
+                    updateConnectionMode(false); // Consider simple fetch as "Delayed/Normal"
+                    return response;
+                } catch (e) {
+                    // If this fails, throw specific error
+                    throw new Error(`Direct fetch failed (${e.message}). Check URL.`);
+                }
+            }
+
+            // 2. Strategy: Try GVIZ (Fast) -> Fail -> Try Export (Reliable)
+            const cacheBuster = Math.random().toString(36).substring(7) + Date.now();
+
+            // Constructs
+            const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetInfo.docId}/gviz/tq?tqx=out:csv&gid=${sheetInfo.gid}&cb=${cacheBuster}`;
+            const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetInfo.docId}/export?format=csv&gid=${sheetInfo.gid}&cb=${cacheBuster}`;
+
+            try {
+                // Try GVIZ
+                const response = await fetch(gvizUrl, { cache: 'no-store' });
+                if (!response.ok) throw new Error('GVIZ failed');
+
+                // If successful, update UI to show "Live Mode"
+                updateConnectionMode(true);
+                return processResponse(response);
+            } catch (e) {
+                console.warn("Fast connection failed, falling back to standard export...", e);
+
+                // Fallback to Export
+                const response = await fetch(exportUrl, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Fallback failed: ${response.status}`);
+
+                updateConnectionMode(false);
+                return processResponse(response);
+            }
+        }
+
+        async function fetchWithCacheBusting(url) {
+            const cacheBuster = Math.random().toString(36).substring(7) + Date.now();
+            const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'cb=' + cacheBuster;
+            const response = await fetch(fetchUrl, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return processResponse(response);
+        }
+
+        async function processResponse(response) {
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                return parseJSON(data); // Expects array
+            } else {
+                const text = await response.text();
+                try {
+                    return parseJSON(JSON.parse(text));
+                } catch (e) {
+                    return parseCSV(text);
+                }
+            }
+        }
+
+        function updateConnectionMode(isFast) {
+            const div = document.getElementById('lastUpdated');
+            const now = new Date().toLocaleTimeString();
+            const mode = isFast ? '⚡ LIVE' : '⚠️ DELAYED';
+            div.textContent = `${mode} • ${now}`;
+            div.style.color = isFast ? '#4ade80' : '#fde047'; // Green or Yellow
+        }
+
+
+
+        function parseJSON(data) {
+            // Returns Array: [{name: "A", score: 10}, {name: "B", score: 5}]
+            const results = [];
+
+            if (Array.isArray(data)) {
+                data.forEach(item => {
+                    // Extract first two meaningful properties if standard format isn't found
+                    const vals = Object.values(item);
+                    if (vals.length >= 2) {
+                        results.push({ name: String(vals[0]), score: Number(vals[1]) || 0 });
+                    }
+                });
+            } else if (typeof data === 'object' && data !== null) {
+                // If it's an object {Team1: 10}, convert to array respecting key order usually
+                // But object key order isn't guaranteed. Best effort.
+                Object.keys(data).forEach(key => {
+                    results.push({ name: key, score: Number(data[key]) || 0 });
+                });
+            }
+            return results;
+        }
+
+        function parseCSV(text) {
+            // Returns Array: [{name: "A", score: 10}, ...]
+            const results = [];
+
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return results;
+
+            // Strategy: Check for Horizontal Format (Row 1 = Names, Row 2 = Scores)
+            const splitLine = (line) => {
+                const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                if (parts) return parts.map(p => p.replace(/^"|"$/g, '').trim());
+                return line.split(',').map(p => p.trim());
+            };
+
+            const headerRow = splitLine(lines[0]);
+
+            // CHECK HORIZONTAL: If we have a second row that looks numeric
+            if (lines.length >= 2) {
+                const secondRow = splitLine(lines[1]);
+                const numericCount = secondRow.filter(v => !isNaN(Number(v)) && v !== '').length;
+
+                if (headerRow.length >= 2 && numericCount > 0) {
+                    const count = Math.min(headerRow.length, secondRow.length);
+                    for (let i = 0; i < count; i++) {
+                        const name = headerRow[i];
+                        const score = Number(secondRow[i]);
+                        if (name && !isNaN(score)) {
+                            results.push({ name: name, score: score });
+                        }
+                    }
+                    return results;
+                }
+            }
+
+            // FALLBACK: Vertical Format
+            lines.forEach(line => {
+                const parts = splitLine(line);
+                if (parts.length >= 2) {
+                    const name = parts[0];
+                    const score = Number(parts[1]);
+                    if (name && !isNaN(score)) {
+                        results.push({ name: name, score: score });
+                    }
+                }
+            });
+
+            return results;
+        }
+
+        function updateDisplay(scores, teamRanks) {
+            const container = document.getElementById('scoreboardContent');
+
+            CONFIG.teams.forEach(teamName => {
+                const score = scores[teamName] || 0;
+                const rank = teamRanks[teamName];
+                let teamDiv = document.getElementById(`team-${teamName}`);
+
+                if (!teamDiv) {
+                    teamDiv = document.createElement('div');
+                    teamDiv.id = `team-${teamName}`;
+                    teamDiv.className = 'team-item';
+
+                    // Badge (first visually)
+                    const badge = document.createElement('div');
+                    badge.className = 'rank-badge';
+                    teamDiv.appendChild(badge);
+
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'team-name';
+                    nameDiv.textContent = teamName;
+                    teamDiv.appendChild(nameDiv);
+
+                    const scoreDiv = document.createElement('div');
+                    scoreDiv.className = 'team-score';
+                    scoreDiv.textContent = score;
+                    teamDiv.appendChild(scoreDiv);
+
+                    container.appendChild(teamDiv);
+                } else {
+                    // Update score
+                    const scoreDiv = teamDiv.querySelector('.team-score');
+                    if (currentScores[teamName] !== score) {
+                        scoreDiv.textContent = score;
+                        teamDiv.classList.add('updated');
+                        setTimeout(() => teamDiv.classList.remove('updated'), 500);
+                    }
+
+                    // Update Badge
+                    const badge = teamDiv.querySelector('.rank-badge');
+
+                    // Reset styling
+                    badge.className = 'rank-badge';
+                    badge.style.display = 'none';
+
+                    if (rank <= 3) {
+                        badge.style.display = 'flex';
+                        badge.classList.add(`rank-${rank}`);
+                        badge.textContent = rank;
+                    }
+                }
+            });
+
+            // Remove loading text if present
+            const loading = container.querySelector('.loading');
+            if (loading) loading.remove();
+
+            // Update timestamp
+            const now = new Date();
+            document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+
+            currentScores = { ...scores };
+        }
+
+        function updateStatusIndicator(success) {
+            const indicator = document.getElementById('statusIndicator');
+            if (success) {
+                indicator.classList.remove('error');
+            } else {
+                indicator.classList.add('error');
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.display = 'none';
+        }
+
+        // Start the application
+        init();
+
+        // Window Controls
+        if (window.electronAPI) {
+            document.getElementById('minimizeBtn').addEventListener('click', () => {
+                window.electronAPI.minimize();
+            });
+
+            document.getElementById('closeBtn').addEventListener('click', () => {
+                window.electronAPI.close();
+            });
+        } else {
+            // Hide controls if not in Electron (e.g. browser mode)
+            document.querySelector('.window-controls').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

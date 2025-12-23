@@ -7,7 +7,8 @@
     "start": "electron .",
     "start-browser": "open index.html",
     "serve": "python3 -m http.server 8000",
-    "package-mac-arm64": "electron-packager . \"Scoreboard Overlay\" --overwrite --platform=darwin --arch=arm64 --prune=true --out=release-builds"
+    "package-mac-arm64": "electron-packager . \"Scoreboard Overlay\" --overwrite --platform=darwin --arch=arm64 --prune=true --out=release-builds",
+    "package-win": "electron-packager . \"Scoreboard Overlay\" --overwrite --platform=win32 --arch=x64 --prune=true --out=release-builds --no-win32metadata"
   },
   "keywords": [
     "scoreboard",

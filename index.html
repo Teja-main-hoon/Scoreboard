@@ -212,6 +212,12 @@
             background: #ef4444;
         }
 
+        .control-btn.font-size-btn {
+            font-size: 11px;
+            font-weight: bold;
+            width: 28px;
+        }
+
         .setup-panel {
             display: flex;
             align-items: center;
@@ -299,6 +305,8 @@
 <body>
     <div class="scoreboard-container">
         <div class="window-controls">
+            <button class="control-btn font-size-btn" id="fontDecreaseBtn" title="Decrease text size">A−</button>
+            <button class="control-btn font-size-btn" id="fontIncreaseBtn" title="Increase text size">A+</button>
             <button class="control-btn" id="minimizeBtn" title="Minimize">−</button>
             <button class="control-btn close" id="closeBtn" title="Close">×</button>
         </div>
@@ -799,6 +807,29 @@
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.style.display = 'none';
         }
+
+        // Font size controls
+        const ZOOM_STEP = 0.1;
+        const ZOOM_MIN = 0.5;
+        const ZOOM_MAX = 2.0;
+        let zoomLevel = parseFloat(localStorage.getItem('zoomLevel')) || 1.0;
+
+        function applyZoom() {
+            document.body.style.zoom = zoomLevel;
+            localStorage.setItem('zoomLevel', zoomLevel);
+        }
+
+        document.getElementById('fontIncreaseBtn').addEventListener('click', () => {
+            zoomLevel = Math.min(ZOOM_MAX, parseFloat((zoomLevel + ZOOM_STEP).toFixed(1)));
+            applyZoom();
+        });
+
+        document.getElementById('fontDecreaseBtn').addEventListener('click', () => {
+            zoomLevel = Math.max(ZOOM_MIN, parseFloat((zoomLevel - ZOOM_STEP).toFixed(1)));
+            applyZoom();
+        });
+
+        applyZoom();
 
         // Start the application
         init();

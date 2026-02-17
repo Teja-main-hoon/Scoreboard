@@ -415,16 +415,15 @@
 
                 // CRITIAL CHANGE: Use Index-based mapping (Row 1 -> Team 1)
                 // This ignores what the team is actually named in the sheet for mapping purposes
+                const displayNames = {};
                 CONFIG.teams.forEach((configTeamName, index) => {
                     if (index < teamsData.length) {
                         const row = teamsData[index];
-                        // We use the score from the row
                         scoresObj[configTeamName] = row.score;
-
-                        // Optional: precise name Sync? 
-                        // For now let's just trust Config names for IDs, but we could update display names too.
+                        displayNames[configTeamName] = row.name;
                     } else {
                         scoresObj[configTeamName] = 0;
+                        displayNames[configTeamName] = configTeamName;
                     }
                 });
 
@@ -442,7 +441,7 @@
                 });
 
                 if (hasScoresChanged(scoresObj)) {
-                    updateDisplay(scoresObj, teamRanks, sortedTeams);
+                    updateDisplay(scoresObj, teamRanks, sortedTeams, displayNames);
                 }
 
                 updateStatusIndicator(true);
@@ -724,12 +723,13 @@
             return results;
         }
 
-        function updateDisplay(scores, teamRanks) {
+        function updateDisplay(scores, teamRanks, sortedTeams, displayNames) {
             const container = document.getElementById('scoreboardContent');
 
             CONFIG.teams.forEach(teamName => {
                 const score = scores[teamName] || 0;
                 const rank = teamRanks[teamName];
+                const sheetName = (displayNames && displayNames[teamName]) || teamName;
                 let teamDiv = document.getElementById(`team-${teamName}`);
 
                 if (!teamDiv) {
@@ -744,7 +744,7 @@
 
                     const nameDiv = document.createElement('div');
                     nameDiv.className = 'team-name';
-                    nameDiv.textContent = teamName;
+                    nameDiv.textContent = sheetName;
                     teamDiv.appendChild(nameDiv);
 
                     const scoreDiv = document.createElement('div');
@@ -754,6 +754,9 @@
 
                     container.appendChild(teamDiv);
                 } else {
+                    // Update name
+                    teamDiv.querySelector('.team-name').textContent = sheetName;
+
                     // Update score
                     const scoreDiv = teamDiv.querySelector('.team-score');
                     if (currentScores[teamName] !== score) {

@@ -4,8 +4,12 @@ const path = require('path');
 let mainWindow;
 
 function createWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 350,
+    width: width, // Full width of screen
     height: 60,
     frame: false,
     transparent: true,
@@ -27,19 +31,14 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Position window in bottom-right corner
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
-
+  // Position window flush at the bottom
   mainWindow.setPosition(
-    width - 370, // 350px width + 20px margin
-    height - 60  // 60px height, flush at bottom
+    0,           // X: Start from left edge
+    height - 60  // Y: 60px height, flush at bottom
   );
 
-  // Open DevTools (optional, remove in production)
-  // Open DevTools (optional, remove in production)
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // DevTools disabled for production (uncomment below to enable for debugging)
+  // mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -68,4 +67,5 @@ app.on('activate', () => {
     createWindow();
   }
 });
+
 

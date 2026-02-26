@@ -1,0 +1,71 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-latest
+            artifact_name: Scoreboard_Overlay_Mac.zip
+          - os: windows-latest
+            artifact_name: Scoreboard_Overlay_Windows.zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Package Application
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            npm run package-win
+          else
+            npm run package-mac-arm64
+          fi
+        shell: bash
+
+      - name: Prepare and Zip Artifact (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd "release-builds/Scoreboard Overlay-darwin-arm64"
+          cp ../../How_to_Use.html .
+          zip -r "../../${{ matrix.artifact_name }}" "Scoreboard Overlay.app" "How_to_Use.html"
+        shell: bash
+
+      - name: Prepare and Zip Artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd "release-builds/Scoreboard Overlay-win32-x64"
+          copy ..\..\How_to_Use.html .
+          copy ..\..\Build_Instructions_Windows.md .
+          powershell "Compress-Archive -Path * -DestinationPath ..\..\${{ matrix.artifact_name }}"
+        shell: cmd
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ matrix.artifact_name }}
+          body: |
+            Automatic production release for ${{ github.ref_name }}.
+            - macOS (Apple Silicon) and Windows builds included.
+            - Includes setup and usage instructions.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

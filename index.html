@@ -349,12 +349,108 @@
             border: 1px solid #fff;
             display: flex;
         }
+
+        /* Timer Styles */
+        .timer-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            height: 100%;
+            padding: 0 20px;
+        }
+
+        .timer-display {
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.4);
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .timer-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            -webkit-app-region: no-drag;
+        }
+
+        .timer-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .timer-btn.start {
+            background: rgba(74, 222, 128, 0.3);
+            border-color: #4ade80;
+        }
+        .timer-btn.start:hover {
+            background: rgba(74, 222, 128, 0.5);
+        }
+        
+        .timer-btn.pause {
+            background: rgba(250, 204, 21, 0.3);
+            border-color: #facc15;
+        }
+        .timer-btn.pause:hover {
+            background: rgba(250, 204, 21, 0.5);
+        }
+
+        .timer-input {
+            width: 40px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums;
+            -webkit-app-region: no-drag;
+        }
+        
+        /* Hide arrows from number input */
+        .timer-input::-webkit-outer-spin-button,
+        .timer-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .bg-timer-finished {
+            /* Override the purple gradient with a pleasing pulsating red gradient */
+            animation: pulse-bg-red 1.5s infinite;
+        }
+
+        @keyframes pulse-bg-red {
+            0%, 100% {
+                background: linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%);
+            }
+            50% {
+                background: linear-gradient(135deg, rgba(248, 113, 113, 0.9) 0%, rgba(220, 38, 38, 0.9) 100%);
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="scoreboard-container">
         <div class="window-controls">
+            <button class="control-btn" id="toggleModeBtn" title="Toggle Timer/Scoreboard">⏱️</button>
             <button class="control-btn font-size-btn" id="fontDecreaseBtn" title="Decrease text size">A−</button>
             <button class="control-btn font-size-btn" id="fontIncreaseBtn" title="Increase text size">A+</button>
             <button class="control-btn" id="minimizeBtn" title="Minimize">−</button>
@@ -375,6 +471,22 @@
         <div id="scoreboardContent" class="teams-row" style="display: none;">
             <div class="loading" style="padding:0">Loading...</div>
         </div>
+        
+        <!-- Timer Panel -->
+        <div id="timerContent" class="timer-container" style="display: none;">
+            <div class="timer-controls">
+                <input type="number" id="timerMins" class="timer-input" value="05" min="0" max="5">
+                <span style="color:white; font-weight:bold;">:</span>
+                <input type="number" id="timerSecs" class="timer-input" value="00" min="0" max="59">
+            </div>
+            <div class="timer-display" id="timerDisplay">05:00</div>
+            <div class="timer-controls">
+                <button id="timerStartBtn" class="timer-btn start">Start</button>
+                <button id="timerPauseBtn" class="timer-btn pause" style="display: none;">Pause</button>
+                <button id="timerResetBtn" class="timer-btn">Reset</button>
+            </div>
+        </div>
+
         <div id="errorMessage" class="error-message" style="display: none;"></div>
     </div>
 
@@ -887,6 +999,156 @@
             zoomLevel = Math.max(ZOOM_MIN, parseFloat((zoomLevel - ZOOM_STEP).toFixed(1)));
             applyZoom();
         });
+
+        // --- Timer Logic ---
+        let currentMode = 'SCOREBOARD';
+        let timerInterval = null;
+        let timerRemaining = 0; // seconds
+        let isTimerRunning = false;
+
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const sbContent = document.getElementById('scoreboardContent');
+        const tContent = document.getElementById('timerContent');
+        const sPanel = document.getElementById('setupPanel');
+
+        let flashTimeout = null;
+
+        toggleModeBtn.addEventListener('click', () => {
+            // Cannot toggle if setup panel is still active
+            if (sPanel.style.display !== 'none') return;
+            
+            if (currentMode === 'SCOREBOARD') {
+                currentMode = 'TIMER';
+                sbContent.style.display = 'none';
+                tContent.style.display = 'flex';
+                toggleModeBtn.textContent = '📊'; // Icon for scoreboard
+                toggleModeBtn.title = "Toggle Scoreboard";
+                
+                // Clear any pending 3-second flash removal so it continues if they switch back early
+                if (flashTimeout) {
+                    clearTimeout(flashTimeout);
+                    flashTimeout = null;
+                }
+            } else {
+                currentMode = 'SCOREBOARD';
+                tContent.style.display = 'none';
+                sbContent.style.display = 'flex';
+                toggleModeBtn.textContent = '⏱️'; // Icon for timer
+                toggleModeBtn.title = "Toggle Timer";
+                
+                // If it is currently flashing red, set a timeout to clear it after 3 seconds
+                if (appContainer.classList.contains('bg-timer-finished')) {
+                    if (flashTimeout) clearTimeout(flashTimeout);
+                    flashTimeout = setTimeout(() => {
+                        appContainer.classList.remove('bg-timer-finished');
+                    }, 3000);
+                }
+            }
+        });
+
+        const timerMins = document.getElementById('timerMins');
+        const timerSecs = document.getElementById('timerSecs');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const timerStartBtn = document.getElementById('timerStartBtn');
+        const timerPauseBtn = document.getElementById('timerPauseBtn');
+        const timerResetBtn = document.getElementById('timerResetBtn');
+
+        function formatTime(totalSeconds) {
+            const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const s = (totalSeconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = formatTime(timerRemaining);
+        }
+
+        // Initialize display to values inside input
+        timerRemaining = (parseInt(timerMins.value) || 0) * 60 + (parseInt(timerSecs.value) || 0);
+
+        const appContainer = document.querySelector('.scoreboard-container');
+
+        timerStartBtn.addEventListener('click', () => {
+            if (isTimerRunning) return;
+            
+            if (timerRemaining === 0) {
+                const parseMin = parseInt(timerMins.value) || 0;
+                const parseSec = parseInt(timerSecs.value) || 0;
+                timerRemaining = Math.max(0, Math.min(parseMin * 60 + parseSec, 300));
+                
+                if (timerRemaining === 0) return;
+            }
+
+            isTimerRunning = true;
+            timerStartBtn.style.display = 'none';
+            timerPauseBtn.style.display = 'inline-block';
+            appContainer.classList.remove('bg-timer-finished');
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                timerRemaining--;
+                if (timerRemaining <= 0) {
+                    timerRemaining = 0;
+                    pauseTimer();
+                    appContainer.classList.add('bg-timer-finished');
+                    
+                    if (currentMode === 'SCOREBOARD') {
+                        if (flashTimeout) clearTimeout(flashTimeout);
+                        flashTimeout = setTimeout(() => {
+                            appContainer.classList.remove('bg-timer-finished');
+                        }, 3000);
+                    }
+                }
+                updateTimerDisplay();
+            }, 1000);
+        });
+
+        function pauseTimer() {
+            isTimerRunning = false;
+            clearInterval(timerInterval);
+            timerStartBtn.style.display = 'inline-block';
+            timerPauseBtn.style.display = 'none';
+            timerStartBtn.textContent = 'Resume';
+        }
+
+        timerPauseBtn.addEventListener('click', pauseTimer);
+
+        timerResetBtn.addEventListener('click', () => {
+            isTimerRunning = false;
+            clearInterval(timerInterval);
+            timerStartBtn.style.display = 'inline-block';
+            timerPauseBtn.style.display = 'none';
+            timerStartBtn.textContent = 'Start';
+            appContainer.classList.remove('bg-timer-finished');
+            
+            const parseMin = parseInt(timerMins.value) || 0;
+            const parseSec = parseInt(timerSecs.value) || 0;
+            timerRemaining = Math.max(0, Math.min(parseMin * 60 + parseSec, 300));
+            updateTimerDisplay();
+        });
+
+        [timerMins, timerSecs].forEach(input => {
+            input.addEventListener('change', () => {
+                if (input.id === 'timerMins' && parseInt(input.value) > 5) input.value = '05';
+                if (input.id === 'timerSecs' && parseInt(input.value) > 59) input.value = '59';
+                
+                if (input.value.length === 1) input.value = '0' + input.value;
+                if (!input.value) input.value = '00';
+
+                isTimerRunning = false;
+                clearInterval(timerInterval);
+                timerStartBtn.style.display = 'inline-block';
+                timerPauseBtn.style.display = 'none';
+                timerStartBtn.textContent = 'Start';
+                appContainer.classList.remove('bg-timer-finished');
+
+                const parseMin = parseInt(timerMins.value) || 0;
+                const parseSec = parseInt(timerSecs.value) || 0;
+                timerRemaining = Math.max(0, Math.min(parseMin * 60 + parseSec, 300));
+                updateTimerDisplay();
+            });
+        });
+        // --- End Timer Logic ---
 
         applyZoom();
 

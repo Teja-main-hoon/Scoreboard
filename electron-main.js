@@ -6,7 +6,7 @@ let mainWindow;
 function createWindow() {
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
+  const { width, height } = primaryDisplay.bounds;
 
   mainWindow = new BrowserWindow({
     width: width, // Full width of screen
@@ -31,10 +31,10 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Position window flush at the bottom
+  // Position window flush at the bottom (use bounds so Y is relative to full screen)
   mainWindow.setPosition(
-    0,           // X: Start from left edge
-    height - 60  // Y: 60px height, flush at bottom
+    primaryDisplay.bounds.x,           // X: Start from left edge of display
+    primaryDisplay.bounds.y + height - 60  // Y: flush at bottom of full screen
   );
 
   // DevTools disabled for production (uncomment below to enable for debugging)

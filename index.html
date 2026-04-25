@@ -106,11 +106,12 @@
             font-weight: 600;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
             margin-bottom: 0;
-            text-align: right;
+            text-align: center;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 60px;
+            flex: 1;
+            min-width: 0;
         }
 
         .team-score {
@@ -440,6 +441,9 @@
             // Generate teams
             CONFIG.teams = Array.from({ length: count }, (_, i) => `Team${i + 1}`);
 
+            // Apply font/layout scaling based on team count
+            applyTeamScaling(count);
+
             // Switch UI
             document.getElementById('setupPanel').style.display = 'none';
             document.getElementById('scoreboardContent').style.display = 'flex';
@@ -504,6 +508,39 @@
         }
 
         // ... helpers ...
+
+        /**
+         * Scales font size, padding, and gap linearly based on the number of teams.
+         * At 2 teams: comfortable sizes. At 12 teams: compact but fully readable.
+         */
+        function applyTeamScaling(count) {
+            // Clamp between 2 and 12
+            const n = Math.max(2, Math.min(12, count));
+
+            // Linear interpolation helper
+            const lerp = (min, max, t) => min + (max - min) * t;
+            const t = (n - 2) / (12 - 2); // 0 at 2 teams, 1 at 12 teams
+
+            const nameFontSize  = Math.round(lerp(13, 8,  t)); // 13px → 8px
+            const scoreFontSize = Math.round(lerp(18, 11, t)); // 18px → 11px
+            const itemPadding   = lerp(4, 2, t).toFixed(1);    // 4px  → 2px
+            const rowGap        = lerp(10, 3, t).toFixed(1);   // 10px → 3px
+            const scoreMinWidth = Math.round(lerp(30, 22, t)); // 30px → 22px
+
+            // Apply to stylesheet via CSS variables injected into a style tag
+            let styleTag = document.getElementById('scaling-styles');
+            if (!styleTag) {
+                styleTag = document.createElement('style');
+                styleTag.id = 'scaling-styles';
+                document.head.appendChild(styleTag);
+            }
+            styleTag.textContent = `
+                .team-name  { font-size: ${nameFontSize}px !important; }
+                .team-score { font-size: ${scoreFontSize}px !important; min-width: ${scoreMinWidth}px !important; }
+                .team-item  { padding: ${itemPadding}px ${parseFloat(itemPadding) * 1.5}px !important; gap: ${Math.round(lerp(6, 3, t))}px !important; }
+                .teams-row  { gap: ${rowGap}px !important; }
+            `;
+        }
 
         function hasScoresChanged(newScores) {
             // On initial load, always update

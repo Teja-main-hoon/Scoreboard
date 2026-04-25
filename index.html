@@ -367,7 +367,7 @@
         <div id="setupPanel" class="setup-panel">
             <input type="text" id="urlInput" class="setup-input url-input" placeholder="Paste Apps Script URL here">
             <label for="teamCount">Teams:</label>
-            <input type="number" id="teamCount" class="setup-input" value="8" min="2" max="8">
+            <input type="number" id="teamCount" class="setup-input" value="8" min="2" max="12">
             <button id="startBtn" class="setup-btn">START</button>
         </div>
 
@@ -430,10 +430,10 @@
             localStorage.setItem('appsScriptUrl', url);
             CONFIG.appsScriptUrl = url;
 
-            if (count < 2 || count > 8) {
+            if (count < 2 || count > 12) {
                 // Show simple error or just reset to limits
                 if (count < 2) countInput.value = 2;
-                if (count > 8) countInput.value = 8;
+                if (count > 12) countInput.value = 12;
                 return;
             }
 

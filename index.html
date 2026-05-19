@@ -444,12 +444,89 @@
                 background: linear-gradient(135deg, rgba(248, 113, 113, 0.9) 0%, rgba(220, 38, 38, 0.9) 100%);
             }
         }
+
+        /* Vertical/Sidebar Mode Styles - Triggered by aspect ratio < 1 (taller than wide) */
+        @media (max-aspect-ratio: 1/1) {
+            .scoreboard-container {
+                flex-direction: column;
+                width: 100% !important;
+                height: 100% !important;
+                padding: 20px 10px;
+                justify-content: flex-start;
+                gap: 15px;
+                border-top: none;
+                border-left: 2px solid rgba(255, 255, 255, 0.2);
+            }
+
+            .teams-row {
+                flex-direction: column;
+                height: auto;
+                gap: 12px !important;
+            }
+
+            .team-item {
+                width: 100%;
+                max-width: none;
+                padding: 10px !important;
+            }
+
+            .team-name {
+                font-size: 16px !important;
+                text-align: left;
+            }
+
+            .team-score {
+                font-size: 20px !important;
+                min-width: 45px !important;
+            }
+
+            .timer-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            /* Inhibit hover transform in vertical mode to prevent overlapping */
+            .team-item:hover {
+                transform: translateX(5px);
+            }
+        }
+
+        /* Update Bar indicator */
+        .team-score {
+            position: relative;
+        }
+
+        .update-indicator {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 4px;
+            background: #4ade80;
+            border-radius: 2px;
+            box-shadow: 0 0 8px #4ade80;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .update-indicator.active {
+            opacity: 1;
+            animation: bar-pulse 1s infinite;
+        }
+
+        @keyframes bar-pulse {
+            0%, 100% { opacity: 1; transform: translateX(-50%) scaleX(1); }
+            50% { opacity: 0.8; transform: translateX(-50%) scaleX(1.1); }
+        }
     </style>
 </head>
 
 <body>
     <div class="scoreboard-container">
         <div class="window-controls">
+            <button class="control-btn" id="sidebarToggleBtn" title="Toggle Sidebar (10s) - (S)">📋</button>
             <button class="control-btn" id="toggleModeBtn" title="Toggle Timer/Scoreboard">⏱️</button>
             <button class="control-btn font-size-btn" id="fontDecreaseBtn" title="Decrease text size">A−</button>
             <button class="control-btn font-size-btn" id="fontIncreaseBtn" title="Increase text size">A+</button>
@@ -554,7 +631,7 @@
             CONFIG.teams = Array.from({ length: count }, (_, i) => `Team${i + 1}`);
 
             // Apply font/layout scaling based on team count
-            applyTeamScaling(count);
+            applyDynamicScaling();
 
             // Switch UI
             document.getElementById('setupPanel').style.display = 'none';
@@ -622,35 +699,183 @@
         // ... helpers ...
 
         /**
-         * Scales font size, padding, and gap linearly based on the number of teams.
-         * At 2 teams: comfortable sizes. At 12 teams: compact but fully readable.
+         * Dynamically scales scoreboard and timer elements based on team count
+         * and the current window dimensions (width/height) to perfectly fill the screen.
          */
-        function applyTeamScaling(count) {
-            // Clamp between 2 and 12
+        function applyDynamicScaling() {
+            const countInput = document.getElementById('teamCount');
+            const count = (CONFIG.teams && CONFIG.teams.length) || (countInput ? parseInt(countInput.value) : 8) || 8;
             const n = Math.max(2, Math.min(12, count));
 
             // Linear interpolation helper
             const lerp = (min, max, t) => min + (max - min) * t;
             const t = (n - 2) / (12 - 2); // 0 at 2 teams, 1 at 12 teams
 
-            const nameFontSize  = Math.round(lerp(13, 8,  t)); // 13px → 8px
-            const scoreFontSize = Math.round(lerp(18, 11, t)); // 18px → 11px
-            const itemPadding   = lerp(4, 2, t).toFixed(1);    // 4px  → 2px
-            const rowGap        = lerp(10, 3, t).toFixed(1);   // 10px → 3px
-            const scoreMinWidth = Math.round(lerp(30, 22, t)); // 30px → 22px
+            const W = window.innerWidth;
+            const H = window.innerHeight;
+            const isVertical = H > W;
 
-            // Apply to stylesheet via CSS variables injected into a style tag
+            // Base sizes before scaling - significantly bumped for high legibility
+            const baseNameFontSize  = lerp(16, 11,  t); // 16px → 11px
+            const baseScoreFontSize = lerp(22, 15, t); // 22px → 15px
+            const baseItemPadding   = lerp(5, 2.5, t); // 5px → 2.5px
+            const baseRowGap        = lerp(12, 6, t);  // 12px → 6px
+            const baseScoreMinWidth = lerp(36, 26, t); // 36px → 26px
+            const baseItemGap       = lerp(8, 4, t);   // 8px → 4px
+
+            let scale = 1.0;
+
+            if (!isVertical) {
+                // Horizontal Mode: Height is highly constrained, width is shared by N teams.
+                const scaleHeight = H / 60;
+                
+                // Available width per team card
+                const availWidth = (W - 20 - (n - 1) * baseRowGap) / n;
+                // Reference width where base fonts fit comfortably (reduced slightly to encourage larger scale)
+                const refWidth = lerp(160, 90, t);
+                const scaleWidth = availWidth / refWidth;
+                
+                // Allow the layout to scale up to 1.3x times scaleHeight if horizontal space permits
+                scale = Math.min(scaleHeight * 1.3, scaleWidth);
+                scale = Math.max(0.8, Math.min(3.0, scale));
+            } else {
+                // Vertical Mode: Width is shared by only 1 team (stacked vertically).
+                // Available height for column layout
+                const availHeight = H - 40; // Subtracting container vertical paddings
+                const itemHeight = (availHeight - (n - 1) * baseRowGap) / n;
+                const refHeight = 45; // Standard item height
+                const scaleHeight = itemHeight / refHeight;
+
+                const availWidth = W - 20; // Subtracting container horizontal paddings
+                const refWidth = 100; // Lower refWidth since single item occupies full width of vertical bar
+                const scaleWidth = availWidth / refWidth;
+
+                scale = Math.min(scaleHeight, scaleWidth);
+                
+                // Apply a 1.25x boost specifically in vertical mode to ensure highly visible, aesthetic large text
+                scale = scale * 1.25;
+                scale = Math.max(1.1, Math.min(3.0, scale));
+            }
+
+            // Compute actual scaled values
+            const nameFontSize = Math.round(baseNameFontSize * scale);
+            const scoreFontSize = Math.round(baseScoreFontSize * scale);
+            const itemPadding = (baseItemPadding * scale).toFixed(1);
+            const rowGap = (baseRowGap * scale).toFixed(1);
+            const scoreMinWidth = Math.round(baseScoreMinWidth * scale);
+            const itemGap = Math.round(baseItemGap * scale);
+            const badgeSize = Math.round(16 * scale);
+            const badgeFontSize = Math.round(10 * scale);
+            const indicatorTop = Math.round(-10 * scale);
+            const indicatorHeight = Math.round(4 * scale);
+
+            // Timer Scaling
+            let timerScale = 1.0;
+            if (!isVertical) {
+                timerScale = H / 60;
+            } else {
+                timerScale = Math.min(W / 240, H / 180);
+            }
+            timerScale = Math.max(0.6, Math.min(3.0, timerScale));
+
+            const timerDisplayFontSize = Math.round(36 * timerScale);
+            const timerInputWidth = Math.round(40 * timerScale);
+            const timerInputFontSize = Math.round(16 * timerScale);
+            const timerBtnFontSize = Math.round(14 * timerScale);
+            const timerBtnPaddingY = Math.round(4 * timerScale);
+            const timerBtnPaddingX = Math.round(12 * timerScale);
+            const timerContainerGap = Math.round(20 * timerScale);
+            const timerControlsGap = Math.round(10 * timerScale);
+
+            // Apply to stylesheet via style tag
             let styleTag = document.getElementById('scaling-styles');
             if (!styleTag) {
                 styleTag = document.createElement('style');
                 styleTag.id = 'scaling-styles';
                 document.head.appendChild(styleTag);
             }
+
             styleTag.textContent = `
-                .team-name  { font-size: ${nameFontSize}px !important; }
-                .team-score { font-size: ${scoreFontSize}px !important; min-width: ${scoreMinWidth}px !important; }
-                .team-item  { padding: ${itemPadding}px ${parseFloat(itemPadding) * 1.5}px !important; gap: ${Math.round(lerp(6, 3, t))}px !important; }
-                .teams-row  { gap: ${rowGap}px !important; }
+                /* Scoreboard Layout & Styles */
+                .teams-row { 
+                    gap: ${rowGap}px !important; 
+                    height: calc(100% - 12px) !important;
+                    align-items: stretch !important;
+                }
+                .team-item { 
+                    padding: ${itemPadding}px ${(itemPadding * 1.5).toFixed(1)}px !important; 
+                    gap: ${itemGap}px !important; 
+                    border-radius: ${Math.round(6 * scale)}px !important;
+                    height: 100% !important;
+                    align-items: center !important;
+                }
+                .team-name { 
+                    font-size: ${nameFontSize}px !important; 
+                }
+                .team-score { 
+                    font-size: ${scoreFontSize}px !important; 
+                    min-width: ${scoreMinWidth}px !important; 
+                    border-radius: ${Math.round(4 * scale)}px !important;
+                    padding: ${Math.round(2 * scale)}px ${Math.round(6 * scale)}px !important;
+                }
+                .rank-badge {
+                    width: ${badgeSize}px !important;
+                    height: ${badgeSize}px !important;
+                    font-size: ${badgeFontSize}px !important;
+                    margin-right: -${Math.round(4 * scale)}px !important;
+                }
+                .update-indicator {
+                    top: ${indicatorTop}px !important;
+                    height: ${indicatorHeight}px !important;
+                    border-radius: ${Math.round(2 * scale)}px !important;
+                }
+
+                /* Vertical Mode Specific Overrides */
+                \${isVertical ? \`
+                .scoreboard-container {
+                    padding: \${Math.round(20 * scale)}px \${Math.round(10 * scale)}px !important;
+                    gap: \${Math.round(15 * scale)}px !important;
+                }
+                .teams-row {
+                    flex-direction: column !important;
+                    height: 100% !important;
+                    justify-content: space-between !important;
+                }
+                .team-item {
+                    width: 100% !important;
+                    height: auto !important;
+                    flex: 1 !important;
+                    padding: \${Math.round(10 * scale)}px !important;
+                }
+                .team-name {
+                    text-align: left !important;
+                }
+                .rank-badge {
+                    margin-right: \${Math.round(4 * scale)}px !important;
+                }
+                \` : ''}
+
+                /* Timer Scaling */
+                .timer-container {
+                    gap: \${timerContainerGap}px !important;
+                }
+                .timer-display {
+                    font-size: \${timerDisplayFontSize}px !important;
+                    letter-spacing: \${Math.round(2 * timerScale)}px !important;
+                }
+                .timer-controls {
+                    gap: \${timerControlsGap}px !important;
+                }
+                .timer-input {
+                    width: \${timerInputWidth}px !important;
+                    font-size: \${timerInputFontSize}px !important;
+                    border-radius: \${Math.round(4 * timerScale)}px !important;
+                }
+                .timer-btn {
+                    font-size: \${timerBtnFontSize}px !important;
+                    padding: \${timerBtnPaddingY}px \${timerBtnPaddingX}px !important;
+                    border-radius: \${Math.round(6 * timerScale)}px !important;
+                }
             `;
         }
 
@@ -929,6 +1154,17 @@
                         scoreDiv.textContent = score;
                         teamDiv.classList.add('updated');
                         setTimeout(() => teamDiv.classList.remove('updated'), 500);
+
+                        // Show 4-second update indicator bar
+                        let indicator = scoreDiv.querySelector('.update-indicator');
+                        if (!indicator) {
+                            indicator = document.createElement('div');
+                            indicator.className = 'update-indicator';
+                            scoreDiv.appendChild(indicator);
+                        }
+                        
+                        indicator.classList.add('active');
+                        setTimeout(() => indicator.classList.remove('active'), 4000);
                     }
 
                     // Update Badge and Card styling
@@ -1046,6 +1282,63 @@
             }
         });
 
+        // --- Sidebar Logic ---
+        let isSidebarMode = false;
+        let sidebarTimer = null;
+        const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+
+        function toggleSidebar() {
+            if (sPanel.style.display !== 'none') return; // Don't move in setup
+
+            isSidebarMode = !isSidebarMode;
+            
+            // Clear any existing timer
+            if (sidebarTimer) {
+                clearTimeout(sidebarTimer);
+                sidebarTimer = null;
+            }
+
+            if (isSidebarMode) {
+                sidebarToggleBtn.style.background = '#4ade80';
+                sidebarToggleBtn.style.color = '#064e3b';
+                sidebarToggleBtn.title = "Return to Bottom (S)";
+                if (window.electronAPI) window.electronAPI.setLayout('sidebar');
+
+                // Auto-revert after 20 seconds
+                sidebarTimer = setTimeout(() => {
+                    if (isSidebarMode) toggleSidebar();
+                }, 20000);
+            } else {
+                sidebarToggleBtn.style.background = '';
+                sidebarToggleBtn.style.color = '';
+                sidebarToggleBtn.title = "Toggle Sidebar (20s) - (S)";
+                if (window.electronAPI) window.electronAPI.setLayout('bottom');
+            }
+        }
+
+        sidebarToggleBtn.addEventListener('click', toggleSidebar);
+
+        // Keyboard Shortcut 'S' for Sidebar
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 's' && e.target.tagName !== 'INPUT') {
+                toggleSidebar();
+            }
+        });
+
+        // Sync button visual state with actual layout (in case of manual resize)
+        function checkLayoutState() {
+            const isVertical = window.innerHeight > window.innerWidth;
+            if (isVertical && !isSidebarMode) {
+                // Manually resized to vertical
+                sidebarToggleBtn.style.background = 'rgba(74, 222, 128, 0.4)';
+            } else if (!isVertical && !isSidebarMode) {
+                sidebarToggleBtn.style.background = '';
+            }
+            applyDynamicScaling();
+        }
+        window.addEventListener('resize', checkLayoutState);
+        // --- End Sidebar Logic ---
+
         const timerMins = document.getElementById('timerMins');
         const timerSecs = document.getElementById('timerSecs');
         const timerDisplay = document.getElementById('timerDisplay');
@@ -1154,6 +1447,7 @@
 
         // Start the application
         init();
+        applyDynamicScaling();
 
         // Window Controls
         if (window.electronAPI) {
@@ -1165,8 +1459,9 @@
                 window.electronAPI.close();
             });
         } else {
-            // Hide controls if not in Electron (e.g. browser mode)
-            document.querySelector('.window-controls').style.display = 'none';
+            // Hide only Electron-specific buttons in browser mode
+            document.getElementById('minimizeBtn').style.display = 'none';
+            document.getElementById('closeBtn').style.display = 'none';
         }
     </script>
 </body>

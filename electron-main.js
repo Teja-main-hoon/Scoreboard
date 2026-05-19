@@ -6,7 +6,7 @@ let mainWindow;
 function createWindow() {
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.bounds;
+  const { width, height } = primaryDisplay.workArea;
 
   mainWindow = new BrowserWindow({
     width: width, // Full width of screen
@@ -31,10 +31,10 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Position window flush at the bottom (use bounds so Y is relative to full screen)
+  // Position window flush at the bottom (use workArea to avoidDock/Taskbar)
   mainWindow.setPosition(
-    primaryDisplay.bounds.x,           // X: Start from left edge of display
-    primaryDisplay.bounds.y + height - 60  // Y: flush at bottom of full screen
+    primaryDisplay.workArea.x,
+    primaryDisplay.workArea.y + height - 60
   );
 
   // DevTools disabled for production (uncomment below to enable for debugging)
@@ -51,6 +51,30 @@ function createWindow() {
 
   ipcMain.on('window-close', () => {
     if (mainWindow) mainWindow.close();
+  });
+
+  ipcMain.on('window-set-layout', (event, mode) => {
+    if (mainWindow) {
+      const { screen } = require('electron');
+      const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+      const { width, height } = currentDisplay.workArea; // Using workArea to respect taskbars/docks
+
+      if (mode === 'sidebar') {
+        const sidebarWidth = 280;
+        mainWindow.setSize(sidebarWidth, height);
+        mainWindow.setPosition(
+          currentDisplay.workArea.x + width - sidebarWidth,
+          currentDisplay.workArea.y
+        );
+      } else {
+        // Default: Bottom Bar
+        mainWindow.setSize(width, 60);
+        mainWindow.setPosition(
+          currentDisplay.workArea.x,
+          currentDisplay.workArea.y + height - 60
+        );
+      }
+    }
   });
 }
 

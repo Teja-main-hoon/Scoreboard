@@ -33,6 +33,68 @@
             padding-bottom: 0;
         }
 
+        /* --- Voice Feedback Animations --- */
+        @keyframes voice-listen-glow {
+            0%, 100% {
+                box-shadow: 0 0 10px rgba(6, 182, 212, 0.5), inset 0 0 10px rgba(6, 182, 212, 0.2) !important;
+                border-color: rgba(6, 182, 212, 0.6) !important;
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(6, 182, 212, 0.9), inset 0 0 15px rgba(6, 182, 212, 0.4) !important;
+                border-color: rgba(6, 182, 212, 0.9) !important;
+            }
+        }
+
+        @keyframes voice-success-flash {
+            0% {
+                box-shadow: 0 0 30px rgba(74, 222, 128, 1) !important;
+                border-color: rgba(74, 222, 128, 1) !important;
+            }
+            100% {
+                box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3) !important;
+                border-color: rgba(255, 255, 255, 0.2) !important;
+            }
+        }
+
+        @keyframes voice-failure-flash {
+            0% {
+                box-shadow: 0 0 30px rgba(239, 68, 68, 1) !important;
+                border-color: rgba(239, 68, 68, 1) !important;
+            }
+            100% {
+                box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.3) !important;
+                border-color: rgba(255, 255, 255, 0.2) !important;
+            }
+        }
+
+        @keyframes mic-record-pulse {
+            0%, 100% {
+                background: rgba(239, 68, 68, 0.8) !important;
+                box-shadow: 0 0 6px rgba(239, 68, 68, 0.8) !important;
+            }
+            50% {
+                background: rgba(239, 68, 68, 0.3) !important;
+                box-shadow: 0 0 14px rgba(239, 68, 68, 0.4) !important;
+            }
+        }
+
+        .scoreboard-container.voice-listening {
+            animation: voice-listen-glow 1.5s infinite ease-in-out !important;
+        }
+
+        .scoreboard-container.voice-success {
+            animation: voice-success-flash 1s ease-out !important;
+        }
+
+        .scoreboard-container.voice-failure {
+            animation: voice-failure-flash 1s ease-out !important;
+        }
+
+        .control-btn#voiceToggleBtn.active {
+            animation: mic-record-pulse 1.2s infinite ease-in-out !important;
+            color: white !important;
+        }
+
         .scoreboard-container {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 0;
@@ -528,6 +590,7 @@
         <div class="window-controls">
             <button class="control-btn" id="sidebarToggleBtn" title="Toggle Sidebar (10s) - (S)">📋</button>
             <button class="control-btn" id="toggleModeBtn" title="Toggle Timer/Scoreboard">⏱️</button>
+            <button class="control-btn" id="voiceToggleBtn" title="Voice Scoring Input (Hold/Click V)">🎙️</button>
             <button class="control-btn font-size-btn" id="fontDecreaseBtn" title="Decrease text size">A−</button>
             <button class="control-btn font-size-btn" id="fontIncreaseBtn" title="Increase text size">A+</button>
             <button class="control-btn" id="minimizeBtn" title="Minimize">−</button>
@@ -1442,6 +1505,236 @@
             });
         });
         // --- End Timer Logic ---
+
+        // --- Voice Scoring Input Logic ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+        let voiceTimeout = null;
+        let keydownTime = 0;
+        const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                isListening = true;
+                voiceToggleBtn.classList.add('active');
+                appContainer.classList.add('voice-listening');
+                
+                // Clear success/failure anims when starting to listen
+                appContainer.classList.remove('voice-success', 'voice-failure');
+
+                if (voiceTimeout) clearTimeout(voiceTimeout);
+                voiceTimeout = setTimeout(() => {
+                    if (isListening) stopVoiceListening();
+                }, 8000);
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                voiceToggleBtn.classList.remove('active');
+                appContainer.classList.remove('voice-listening');
+                if (voiceTimeout) clearTimeout(voiceTimeout);
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+                triggerVoiceFeedback(false);
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                parseVoiceCommand(transcript);
+            };
+        } else {
+            console.warn("SpeechRecognition API is not supported in this environment.");
+            voiceToggleBtn.style.display = 'none';
+        }
+
+        function startVoiceListening() {
+            if (!recognition) return;
+            if (isListening) return;
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error("Failed to start voice recognition:", err);
+            }
+        }
+
+        function stopVoiceListening() {
+            if (!recognition) return;
+            if (!isListening) return;
+            try {
+                recognition.stop();
+            } catch (err) {
+                console.error("Failed to stop voice recognition:", err);
+            }
+        }
+
+        function toggleVoiceListening() {
+            if (isListening) {
+                stopVoiceListening();
+            } else {
+                startVoiceListening();
+            }
+        }
+
+        // Click Trigger
+        voiceToggleBtn.addEventListener('click', toggleVoiceListening);
+
+        // Keyboard Triggers (Holding or Tapping 'V')
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'v' && !e.repeat && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                keydownTime = Date.now();
+                if (!isListening) {
+                    startVoiceListening();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key.toLowerCase() === 'v' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                const pressDuration = Date.now() - keydownTime;
+                if (pressDuration > 350) {
+                    // Holding 'V' (Push-To-Talk) -> Stop and submit on keyup
+                    stopVoiceListening();
+                }
+            }
+        });
+
+        // Numeric Word Lookup Table
+        const numberWords = {
+            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100
+        };
+
+        function parseSpokenNumber(text) {
+            text = text.trim().toLowerCase();
+            if (!isNaN(text)) return parseInt(text);
+
+            const words = text.split(/[\s-]+/);
+            let total = 0;
+            let current = 0;
+
+            for (const word of words) {
+                if (numberWords[word] !== undefined) {
+                    const val = numberWords[word];
+                    if (val === 100) {
+                        current = (current || 1) * 100;
+                    } else {
+                        current += val;
+                    }
+                }
+            }
+            return current + total;
+        }
+
+        // Natural Command Parser
+        function parseVoiceCommand(transcript) {
+            const text = transcript.toLowerCase().trim();
+            console.log("Speech recognition heard:", text);
+
+            // Pattern 1: "team 5 plus 10" or "team 2 set to 80"
+            const pattern1 = /team\s+(\d+|[a-z\-]+)\s+(plus|add|minus|subtract|set|to)\s+(\d+|[a-z\-]+)/i;
+            // Pattern 2: "set team 3 to 50"
+            const pattern2 = /set\s+team\s+(\d+|[a-z\-]+)\s+(?:to\s+)?(\d+|[a-z\-]+)/i;
+            // Pattern 3: "add 5 to team 2"
+            const pattern3 = /(add|plus)\s+(\d+|[a-z\-]+)\s+to\s+team\s+(\d+|[a-z\-]+)/i;
+            // Pattern 4: "subtract 5 from team 2"
+            const pattern4 = /(subtract|minus)\s+(\d+|[a-z\-]+)\s+from\s+team\s+(\d+|[a-z\-]+)/i;
+
+            let teamMatch = null;
+            let action = null;
+            let valueMatch = null;
+
+            let match = text.match(pattern1);
+            if (match) {
+                teamMatch = match[1];
+                action = match[2];
+                valueMatch = match[3];
+            } else {
+                match = text.match(pattern2);
+                if (match) {
+                    teamMatch = match[1];
+                    action = 'set';
+                    valueMatch = match[2];
+                } else {
+                    match = text.match(pattern3);
+                    if (match) {
+                        action = 'add';
+                        valueMatch = match[2];
+                        teamMatch = match[3];
+                    } else {
+                        match = text.match(pattern4);
+                        if (match) {
+                            action = 'subtract';
+                            valueMatch = match[2];
+                            teamMatch = match[3];
+                        }
+                    }
+                }
+            }
+
+            if (teamMatch && valueMatch) {
+                const teamNum = parseSpokenNumber(teamMatch);
+                const value = parseSpokenNumber(valueMatch);
+
+                if (teamNum > 0 && teamNum <= CONFIG.teams.length) {
+                    const teamName = CONFIG.teams[teamNum - 1];
+                    applyVoiceUpdate(teamName, action, value);
+                    return true;
+                }
+            }
+
+            // Command unrecognized
+            triggerVoiceFeedback(false);
+            return false;
+        }
+
+        // Apply voice score update locally & sync to server
+        function applyVoiceUpdate(teamName, action, value) {
+            let currentScore = currentScores[teamName] || 0;
+            let newScore = currentScore;
+
+            if (action === 'add' || action === 'plus') {
+                newScore = currentScore + value;
+            } else if (action === 'subtract' || action === 'minus') {
+                newScore = Math.max(0, currentScore - value);
+            } else if (action === 'set' || action === 'to') {
+                newScore = value;
+            }
+
+            // 1. Instant local render update
+            currentScores[teamName] = newScore;
+            renderScores({ ...currentScores });
+
+            // 2. Play success flash animation
+            triggerVoiceFeedback(true);
+
+            // 3. Write background update to Google Apps Script
+            if (CONFIG.appsScriptUrl && CONFIG.appsScriptUrl.includes('/exec')) {
+                const syncUrl = CONFIG.appsScriptUrl + '?team=' + encodeURIComponent(teamName) + '&score=' + newScore + '&action=set';
+                fetch(syncUrl, { mode: 'no-cors' })
+                    .then(() => console.log(`Background voice sync success for ${teamName}: ${newScore}`))
+                    .catch((e) => console.error("Background voice sync error:", e));
+            }
+        }
+
+        // Flash screen indicator animations
+        function triggerVoiceFeedback(success) {
+            const feedbackClass = success ? 'voice-success' : 'voice-failure';
+            appContainer.classList.add(feedbackClass);
+            setTimeout(() => {
+                appContainer.classList.remove(feedbackClass);
+            }, 1000);
+        }
+        // --- End Voice Scoring Input Logic ---
 
         applyZoom();
 
